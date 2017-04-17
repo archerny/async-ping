@@ -1,0 +1,4 @@
+test data: {"timeout": 10, "servers": ["10.101.80.227", "47.92.91.5"]}
+test via curl: curl localhost:9201/net/ping --data '{"timeout": 10, "servers": ["10.101.80.227", "47.92.91.5"]}'
+
+

@@ -1,0 +1,8 @@
+tmp/
+bin/*
+.vscode/
+lib/
+depend/json/*.o
+*.swp
+*.o
+*.log
