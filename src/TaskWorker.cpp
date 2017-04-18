@@ -15,26 +15,36 @@ void notifyEventHandler(int fd, short event, void *arg)
   char tmpBuf[2];
   ssize_t readed = read(me->recvFd, tmpBuf, 1);
   if (readed <= 0) {
-    // read error, nothing to read, log
+    logger.log(ERROR_LOG, "task worker read pipe error, try pop one from queue");
   }
   Task *task;
   if (!me->taskQueue.popTail(task))
   {
-    // nothing todo
+    logger.log(ERROR_LOG, "task worker notified, but nothing to do, return");
     return;
   }
   if (me->doingCount >= DOING_TASK_CAPACITY)
   {
-    string errorMsg = "too many doing tasks, drop this one";
-    logger.log(ERROR_LOG, errorMsg.c_str());
-    HttpResponse *resp = new HttpResponse(task->request, 
-                  "{success: false, errorMsg: \"" + errorMsg + "\"}");
-    me->sendToMaster(resp);
-    delete task;
+    logger.log(ERROR_LOG, "too many doing tasks, drop this one");
+    task->prepareError = true;
+    task->preErrorCode = 1005;
+    me->sendToMaster(task);
+    return;
   }
-  me->doingCount ++;
-  task->initTask();
-  me->doTask(task);
+  if (task->initTask(me->base))
+  {
+    // really doing this task
+    me->doingCount ++;
+    me->doTask(task);
+  }
+  else
+  {
+    logger.log(ERROR_LOG, "init task error, failed to execute");
+    task->prepareError = true;
+    task->preErrorCode  = 1006;
+    me->sendToMaster(task);
+    return;
+  }
 }
 
 
@@ -44,6 +54,7 @@ TaskWorker::TaskWorker()
   notifyEvent = NULL;
   master = NULL;
   doingCount = 0;
+  pid = getpid();
 }
 
 TaskWorker::~TaskWorker()
@@ -122,7 +133,7 @@ void *TaskWorker::doRun()
   return NULL;
 }
 
-void TaskWorker::sendToMaster(HttpResponse *response)
+void TaskWorker::sendToMaster(Task *response)
 {
   master->enqueueResponse(response);
   master->notify();
@@ -132,15 +143,14 @@ void TaskWorker::doTask(Task *task)
 {
   for (int i = 0; i < task->totalCount; i ++)
   {
-    Ping ping = (task->pingArray)[i];
-    ping.worker = this;
-    ping.start();
+    Ping* ping = task->pingArray + i;
+    ping->worker = this;
+    ping->start();
   }
 }
 
 void TaskWorker::onComplete(Task *task)
 {
   doingCount --;
-  HttpResponse *response = task->buildResponse();
-  sendToMaster(response);
+  sendToMaster(task);
 }

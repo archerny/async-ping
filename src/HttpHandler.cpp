@@ -1,40 +1,54 @@
 #include "HttpHandler.h"
-#include "HttpUtil.h"
 #include "HttpServer.h"
 #include "HttpResponse.h"
 #include "Task.h"
-#include <iostream>
+#include "Log.h"
+
+extern Logger logger;
 
 void HttpHandler::handlePingReq(struct evhttp_request *req, void *arg)
 {
   HttpServer *server = (HttpServer *)arg;
+  Task *task;
+  JsonValue jv;
   // checkMethod
   // If the HTTP method used is not acceptable, then according to the specification, you should return a 405 Method Not Allowed.
   // For example, Allow: POST, or if there are multiple choices, Allow: POST, PUT
   int cmdType = evhttp_request_get_command(req);
   if (cmdType != EVHTTP_REQ_POST)
   {
-    // log the error
-    HttpResponse *resp = new HttpResponse(req, 405);
-    server->enqueueResponse(resp);
-    server->notify();
-    return;
+    logger.log(ERROR_LOG, "invalid request, method not supported, drop");
+    task = new Task(405);
+    goto finally;
   }
   // get request data
-  JsonValue jv;
   if (!recvReqInput(req, jv))
   {
-    // log the error, data format not supported
-    // maybe I should return 415(Unsupported Media Type)
-    HttpResponse *resp = new HttpResponse(req, 415);
-    server->enqueueResponse(resp);
-    server->notify();
-    return;
+    logger.log(ERROR_LOG, "invalid request, payload data format not json, drop");
+    task = new Task(415);
+    goto finally;
   }
-  Task *task = new Task(req, jv);
-  server->sendToWorker(task);
-  std::cout << "test ping handler processed" << std::endl;
-  return;
+  task = new Task(jv);
+
+finally:
+  map<Task *, struct evhttp_request *>::iterator it = server->doingRequest.find(task);
+  if  (it != server->doingRequest.end())
+  {
+    logger.log(ERROR_LOG, "what the fuck, impossible");
+  }
+  server->doingRequest.insert(pair<Task *, struct evhttp_request *>(task, req));
+
+  if (task->prepareError)
+  {
+    // no need to execute this, return direct
+    server->enqueueResponse(task);
+    server->notify();
+  }
+  else
+  {
+    // valid request task. go! bite it
+    server->sendToWorker(task);
+  }
 }
 
 void HttpHandler::handleSshReq(struct evhttp_request *req, void *arg)

@@ -11,11 +11,13 @@
 
 #include "Common.h"
 #include "HttpServer.h"
-#include "HttpUtil.h"
 #include "TaskWorker.h"
+#include "Log.h"
 
 using common::ThreadWorker;
 using common::Common;
+
+extern Logger logger;
 
 // general callback
 static void generalHttpCallback(struct evhttp_request *req, void *arg)
@@ -41,13 +43,34 @@ void tryRespEventHandler(int fd, short event, void *arg)
   ssize_t readed = read(me->recvFd, tmpBuf, 1);
   if (readed <= 0)
   {
-    // read error, nothing to read, log
+    logger.log(WARN_LOG, "notified but nothing to read");
   }
-  HttpResponse *response = NULL;
-  if (me->responseQueue.popTail(response))
+  Task *taskResp = NULL;
+  if (me->responseQueue.popTail(taskResp))
   {
-    response->doResponse();
-    delete response;
+    struct evhttp_request *req;
+    map<Task *, struct evhttp_request *>::iterator it = me->doingRequest.find(taskResp);
+    if (it == me->doingRequest.end())
+    {
+      logger.log(ERROR_LOG, "index the evhttp_request by task pointer error, impossible");
+      return;
+    }
+    req = it->second;
+    me->doingRequest.erase(it);
+
+    HttpResponse response = HttpResponse(req);
+    taskResp->fillHttpResponse(&response);
+    response.doResponse();
+
+    // string content = taskResp->buildResponse();
+    // evhttp_add_header(evhttp_request_get_output_headers(req),
+    //                 "Content-Type", "text/html");
+    // struct evbuffer *evb = evbuffer_new();
+    // evbuffer_expand(evb, content.size());
+    // evbuffer_add(evb, (const void *)content.c_str(), content.size());
+    // evhttp_send_reply(req, 200, "OK", evb);
+    // evbuffer_free(evb);
+    delete taskResp;
   }
 }
 

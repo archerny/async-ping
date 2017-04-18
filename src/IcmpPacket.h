@@ -25,6 +25,23 @@ using std::string;
 
 #define ICMP_HEADER_SIZE 8
 
+enum
+{ 
+  echo_reply = 0,
+  destination_unreachable = 3,
+  source_quench = 4,
+  redirect = 5,
+  echo_request = 8,
+  time_exceeded = 11,
+  parameter_problem = 12, 
+  timestamp_request = 13,
+  timestamp_reply = 14,
+  info_request = 15, 
+  info_reply = 16,
+  address_request = 17,
+  address_reply = 18
+};
+
 class IcmpPacket
 {
 public:

@@ -7,6 +7,8 @@
 
 using common::JsonValue;
 
+#define RECV_BUF_SIZE 4097
+
 class HttpHandler
 {
 public:

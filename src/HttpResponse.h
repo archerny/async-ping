@@ -16,13 +16,21 @@ using common::JsonValue;
 class HttpResponse
 {
 public:
-  HttpResponse(struct evhttp_request *req, const string& content);
-  HttpResponse(struct evhttp_request *req, const JsonValue& json);
+  HttpResponse(struct evhttp_request *req, const string &content);
+  HttpResponse(struct evhttp_request *req, const JsonValue &json);
   HttpResponse(struct evhttp_request *req);
   HttpResponse(struct evhttp_request *req, int code);
   ~HttpResponse();
 
+  inline void fill(int respCode) { responseCode = respCode; }
+  inline void fill(const string &content)
+  {
+    evbuffer_expand(evb, content.size());
+    evbuffer_add(evb, (const void *)content.c_str(), content.size());
+  }
+
   void doResponse();
+
 private:
   struct evhttp_request *request;
   struct evbuffer *evb;

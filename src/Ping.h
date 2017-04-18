@@ -6,6 +6,7 @@
 const int PING_TIMEOUT = -1;
 const int PING_UNINITED = -2;
 const int PING_NOT_DONE = -3;
+const int PING_SEND_ERROR = -4;
 
 class Task;
 class TaskWorker;
@@ -14,6 +15,10 @@ using std::string;
 
 class Ping
 {
+public:
+  Ping();
+  ~Ping();
+
 public:
   static void handleRequest();
   static void handleReceive();

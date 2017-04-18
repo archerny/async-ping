@@ -35,13 +35,14 @@ public:
   inline void registerMaster(HttpServer *master) { this->master = master; }
   inline bool enqueueTask(Task *task) { return taskQueue.pushHead(task); }
   inline struct event_base *getEvBase() { return base; }
-  void sendToMaster(HttpResponse *response);
+  void sendToMaster(Task *response);
+  void onComplete(Task *task);
+  unsigned short getShortPid() { return pid & 0xffff; }
 
 private:
   bool initPipe();
   bool closePipe();
   void doTask(Task *task);
-  void onComplete(Task *task);
 
 private:
   HttpServer *master;
@@ -49,6 +50,7 @@ private:
   int notifyFd;
   int recvFd; // recvs data from
   int doingCount;
+  pid_t pid;
 
 private:
   struct event_base *base;

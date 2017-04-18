@@ -22,7 +22,6 @@ CC = gcc
 
 
 OBJS = Main.o \
-	   HttpUtil.o \
 	   HttpServer.o \
 	   HttpHandler.o \
 	   HttpResponse.o \

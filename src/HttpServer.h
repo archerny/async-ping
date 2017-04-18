@@ -21,6 +21,7 @@ using std::vector;
 extern Logger logger;
 
 class TaskWorker;
+class Task;
 
 void tryRespEventHandler(int fd, short event, void *arg);
 
@@ -41,9 +42,10 @@ public:
 public:
   bool registerHandler(const string &path, void (*handler)(struct evhttp_request *, void *));
   void registerWorker(TaskWorker *worker);
-  inline bool enqueueResponse(HttpResponse *resp) { return responseQueue.pushHead(resp); }
+  inline bool enqueueResponse(Task *resp) { return responseQueue.pushHead(resp); }
   bool sendToWorker(Task *task);
   void notify();
+  map<Task *, struct evhttp_request *> doingRequest;
 
 private:
   bool setTimerTask();
@@ -59,7 +61,8 @@ private:
   int exitStatus;
   int notifyFd;
   int recvFd;
-  ConcurrentDequeue<HttpResponse *> responseQueue;
+  // index for find task's original task
+  ConcurrentDequeue<Task *> responseQueue;
   vector<TaskWorker *> workers;
 
 private:
