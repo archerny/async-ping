@@ -33,16 +33,11 @@ OBJS = Main.o \
 all:  $(TARGET)
 
 $(TARGET): commonlibs $(OBJS)
-	$(GCC) -g -o $@ $(OBJS) $(LIBS) -lcommon -levent -ljson -lpthread
+	$(GCC) -g -o $@ $(OBJS) $(LIBS) -lcommon -levent -ljson -lpthread -lrt
 
 commonlibs: libevent.a
 	cd $(ROOT)/depend/json; make
 	cd common; make
-#	cd main; make
-#	cd $(ROOT)/bin;	rm -f agent.tar*;mkdir -p agent;cp AlimonitorAgent agent; cp agent.sh agent; tar cvf agent.tar agent;gzip agent.tar; rm -rf agent
-#	cd $(ROOT)/bin; echo "AlimonitorAgent agent.sh" > file.list
-#	cd $(ROOT)/bin; if [ `uname | grep -i sun | wc -l` -gt 0 ] ;  then digest -a md5 agent.tar.gz > agent.tar.gz.md5; elif [ `uname | grep -i AIX | wc -l` -gt 0 ] ; then csum agent.tar.gz | awk '{print $$1}' > agent.tar.gz.md5; elif [ `uname | grep -i linux | wc -l` -gt 0 ] ; then md5sum agent.tar.gz | awk '{print $$1}' > agent.tar.gz.md5; else echo "no" > agent.tar.gz.md5; fi
-
 
 libevent.a:
 	if [ ! -d $(CURPATH)/tmp/libevent-install ] ; then mkdir -p $(CURPATH)/tmp; tar -xzvf $(ROOT)/depend/libevent-2.0.22-stable.tar.gz -C $(CURPATH)/tmp; cd $(CURPATH)/tmp/libevent-2.0.22-stable; ./configure --prefix=$(CURPATH)/tmp/libevent-install/ --disable-shared --disable-openssl; make; make install; fi
