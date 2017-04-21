@@ -45,6 +45,7 @@ public:
   inline bool enqueueResponse(Task *resp) { return responseQueue.pushHead(resp); }
   bool sendToWorker(Task *task);
   void notify();
+  // not thread safe
   map<Task *, struct evhttp_request *> doingRequest;
 
 private:
@@ -58,7 +59,6 @@ private:
 private:
   // httpserver info
   unsigned short bindPort;
-  int exitStatus;
   int notifyFd;
   int recvFd;
   // index for find task's original task

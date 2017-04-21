@@ -6,6 +6,7 @@
 #include "HttpServer.h"
 #include "HttpHandler.h"
 #include "TaskWorker.h"
+#include "Common.h"
 
 using namespace std;
 using std::vector;
@@ -38,6 +39,7 @@ int main(int argc, char **argv)
   {
     TaskWorker *worker = new TaskWorker();
     workers.push_back(worker);
+    worker->setThreadId(i); // not real thread id, just for identify
     worker->registerMaster(server);
     server->registerWorker(worker);
     worker->runIt();

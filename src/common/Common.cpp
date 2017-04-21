@@ -23,3 +23,10 @@ int Common::getRandIntvalue(int start, int end)
   int r = (int)(rand() / (double)((unsigned)RAND_MAX + 1) * (delta));
   return start + r;
 }
+
+uint64_t Common::currentTime()
+{
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
+}

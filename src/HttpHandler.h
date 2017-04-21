@@ -18,6 +18,8 @@ public:
 
   static void handleHttpReq(struct evhttp_request *req, void *arg);
 
+  static void hadnleSnmpReq(struct evhttp_request *req, void *arg);
+
 private:
   // util functions for handlers
   static bool recvReqInput(struct evhttp_request *req, string& str);

@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <inttypes.h>
 
 #include "ThreadWorker.h"
 #include "CommonList.h"
@@ -42,6 +43,7 @@ class LogEventBody
 {
 public:
   char *content;
+  const char *srcFileName;
   LogLevel level;
   int line;
   time_t now;

@@ -23,6 +23,24 @@ using std::string;
 // |                               |                              |       v
 // +-------------------------------+------------------------------+      ---
 
+// private protocal for xping
+// 2 bytes thread number; 8 bytes timestamp; 2 bytes index
+//
+// 0               8               16                             31
+// +---------------+---------------+------------------------------+      ---
+// |                               |                              |       ^
+// |        thread number          |         timestamp            |       |
+// |                               |                              |       |
+// +---------------+---------------+------------------------------+    8 bytes
+// |                                                              |       |
+// |                            timestamp                         |       |
+// |                                                              |       v
+// +-------------------------------+------------------------------+      ---
+// |                               |                              |       ^
+// |         timestamp             |          index               |    4 bytes
+// |                               |                                      v
+// +-------------------------------+------------------------------+      ---
+
 #define ICMP_HEADER_SIZE 8
 
 enum
@@ -45,6 +63,7 @@ enum
 class IcmpPacket
 {
 public:
+  IcmpPacket(unsigned char type, unsigned char code, unsigned short identifier, unsigned short seq, int size, const char *buf);
   IcmpPacket(unsigned char type, unsigned char code, unsigned short identifier, unsigned short seq, const string& pktContent);
   IcmpPacket(const unsigned char *srcBuf, size_t size);
   ~IcmpPacket();
@@ -70,9 +89,22 @@ IcmpPacket::IcmpPacket(unsigned char type, unsigned char code, unsigned short id
   struct icmp *icmpTmp = (struct icmp *) buf;
   icmpTmp->icmp_type = ICMP_ECHO;
   icmpTmp->icmp_code = code;
-  //icmpTmp->icmp_id = htons(0xffff & identifier);
   icmpTmp->icmp_id = 0xffff & identifier;
-  //icmpTmp->icmp_seq = htons(seq);
+  icmpTmp->icmp_seq = seq;
+  icmpTmp->icmp_cksum = htons(calcCheckSum());
+}
+
+IcmpPacket::IcmpPacket(unsigned char type, unsigned char code, unsigned short identifier, unsigned short seq, int size, const char *srcBuf)
+{
+  packetSize = ICMP_HEADER_SIZE + size + 1;
+  buf = new unsigned char[packetSize];
+  memcpy(buf + ICMP_HEADER_SIZE, srcBuf, size);
+  buf[packetSize - 1] = 0;
+  
+  struct icmp *icmpTmp = (struct icmp *) buf;
+  icmpTmp->icmp_type = ICMP_ECHO;
+  icmpTmp->icmp_code = code;
+  icmpTmp->icmp_id = 0xffff & identifier;
   icmpTmp->icmp_seq = seq;
   icmpTmp->icmp_cksum = htons(calcCheckSum());
 }

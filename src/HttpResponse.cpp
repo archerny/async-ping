@@ -11,6 +11,7 @@ HttpResponse::HttpResponse(struct evhttp_request *req, const string &content)
   responseCode = 200;
 }
 
+// deprecated
 HttpResponse::HttpResponse(struct evhttp_request *req, const JsonValue &json)
 {
   request = req;

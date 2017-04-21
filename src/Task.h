@@ -24,7 +24,8 @@ using common::JsonValue;
 
 #define IPHDR 20
 #define MAX_DATA_SIZE (IP_MAXPACKET - IPHDR - ICMP_MINLEN)
-#define MAX_PING_PER_TASK 65536   //reach max of unsigned short
+#define MAX_PING_PER_TASK 65536 //reach max of unsigned short
+#define EXTRA_PROTO_SIZE 12     //12 bytes, threadId(2), taskTimestamp(8), subIndex(2)
 
 class Ping;
 
@@ -36,20 +37,19 @@ public:
   ~Task();
 
 public:
-  static void handleSocketRead(int fd, short event, void *arg);
   string buildResponse();
   void fillHttpResponse(HttpResponse *resp);
-  bool initTask(struct event_base *base);
   inline bool isComplete() { return doneCount >= totalCount; }
+  inline void setTimestamp(uint64_t t) { this->timestamp = t; }
 
   bool prepareError;
   int preErrorCode;
 
+  uint64_t timestamp;
   int totalCount;
+  // important: assert that doneCount should not be counted more than once, in any case
   int doneCount;
   Ping *pingArray;
-  evutil_socket_t rawSocketFd;
-  struct event *sockReadEvent;
 };
 
 #endif

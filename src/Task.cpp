@@ -4,9 +4,11 @@
 #include "HttpResponse.h"
 
 #include <sstream>
+#include <errno.h>
 
 using std::ostringstream;
 extern Logger logger;
+extern int errno;
 
 // already knows that the task is error
 Task::Task(int errorCode)
@@ -67,9 +69,7 @@ Task::Task(JsonValue &jv)
     pingArray[i].ip = body["servers"][i].asString();
     pingArray[i].timeout = timeout;
     pingArray[i].status = PING_UNINITED;
-    pingArray[i].round = 0;
     pingArray[i].parentTask = this;
-    pingArray[i].pingEvent = NULL;
   }
 }
 
@@ -122,10 +122,16 @@ string Task::buildResponse()
     body["success"] = true;
     body["errMsg"] = "";
     for (int i = 0; i < totalCount; i++)
-    {  
-      body["results"][i]["ip"] = pingArray[i].ip;
-      body["results"][i]["lossRate"] = 1.0;
-      body["results"][i]["avgRtt"] = 5.0 + i;
+    {
+      Ping *p = pingArray + i;
+      body["results"][i]["ip"] = p->ip;
+      double lossRate = p->status == PING_SUCCESS ? 0 : 1.0;
+      body["results"][i]["lossRate"] = lossRate;
+      double cost = (double)(p->recvtime - p->sendtime) / 1000.0;
+      if (lossRate == 0)
+      {
+        body["results"][i]["avgRtt"] = cost;
+      }
     }
   }
   ostringstream sout;
@@ -144,66 +150,3 @@ void Task::fillHttpResponse(HttpResponse *response)
     response->fill(buildResponse());
   }
 }
-
-bool Task::initTask(struct event_base * base)
-{
-  // build raw socket
-  struct protoent *proto = NULL;
-  if (!(proto = getprotobyname("icmp")))
-  {
-    logger.log(ERROR_LOG, "proto icmp not supported on this host, drop ping task.");
-    return false;
-  }
-  if ((rawSocketFd = socket(AF_INET, SOCK_RAW, proto->p_proto)) == -1)
-  {
-    logger.log(ERROR_LOG, "create raw socket error, drop ping task");
-    return false;
-  }
-  evutil_make_socket_nonblocking(rawSocketFd);
-
-  // register fd read callback
-  sockReadEvent = new event;
-  event_assign(sockReadEvent, base, rawSocketFd, EV_READ | EV_PERSIST, Task::handleSocketRead, (void *)this);
-  event_add(sockReadEvent, NULL);
-  return true;
-}
-
-void Task::handleSocketRead(int fd, short event, void *arg)
-{
-  Task *me = (Task *)arg;
-
-  unsigned char recvPacket[MAX_DATA_SIZE];
-  struct ip *ipPacket = (struct ip *)recvPacket;
-  
-  socklen_t slen = sizeof(struct sockaddr);
-  struct sockaddr_in remote;
-  int nrecv = recvfrom(me->rawSocketFd, recvPacket, sizeof(recvPacket), MSG_DONTWAIT,  (struct sockaddr *)&remote, &slen);
-  if (nrecv == -1)
-  {
-    logger.log(ERROR_LOG, "recv from raw socket error");
-    return;
-  }
-  // IHL: 4 bits Internet Header Length is the length of the internet header in 32 bit words,
-  // and thus points to the beginning of the data. Note that the minimum value for a correct
-  // header is 5.
-  int hlen = ipPacket->ip_hl * 4;
-  if (hlen < 20 || nrecv < hlen + ICMP_MINLEN)
-  {
-    logger.log(ERROR_LOG, "recv packet too short, drop it");
-    return;
-  }
-  struct icmphdr *icmpHeader = (struct icmphdr *)(recvPacket + hlen);
-  unsigned short id  = icmpHeader->un.echo.id;
-  unsigned short seq = icmpHeader->un.echo.sequence;
-  char charIpBuf[20] = {0};
-  if (inet_ntop(AF_INET, &(remote.sin_addr), charIpBuf, 20) == NULL)
-  {
-    logger.log(ERROR_LOG, "recv remote addr convert to ip string, error");
-    return;
-  }
-  std::string ipStr = charIpBuf;
-  std::cout << ipStr << std::endl;
-  std::cout << id << std::endl;
-  std::cout << seq << std::endl;
-}
-

@@ -40,9 +40,9 @@ void LogEventBody::dumpToFile(FILE *fp)
   struct tm *tmNow = localtime(&now);
   const char *levelString = getLevelString(level);
 
-  fprintf(fp, "[%s] %04d-%02d-%02d %02d:%02d:%02d (line:%d): %s\n", 
+  fprintf(fp, "[%s] %04d-%02d-%02d %02d:%02d:%02d (%s:%d): %s\n", 
     levelString, tmNow->tm_year + 1900, tmNow->tm_mon + 1, tmNow->tm_mday, tmNow->tm_hour,
-    tmNow->tm_min, tmNow->tm_sec, line, content);
+    tmNow->tm_min, tmNow->tm_sec, srcFileName, line, content);
   // flush buffer
   fflush(fp);
 }
@@ -104,6 +104,7 @@ void Logger::log(LogLevel level, const char *srcFileName, int line, const char *
   LogEventBody *body = new LogEventBody();
   body->line = line;
   body->level = level;
+  body->srcFileName = srcFileName;
   va_list vargs;
   va_start(vargs, fmt);
   vsnprintf(body->content, LOG_LINE_BUF_SIZE - 1, fmt, vargs);

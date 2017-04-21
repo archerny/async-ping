@@ -4,7 +4,6 @@
 #include <event2/buffer.h>
 #include <event2/util.h>
 #include <event2/keyvalq_struct.h>
-#include <iostream>
 #include <string>
 #include <stdlib.h>
 #include <unistd.h>
@@ -19,7 +18,7 @@ using common::Common;
 
 extern Logger logger;
 
-// general callback
+// general callback returns 404
 static void generalHttpCallback(struct evhttp_request *req, void *arg)
 {
   evhttp_send_error(req, 404, "Not Found");
@@ -27,13 +26,7 @@ static void generalHttpCallback(struct evhttp_request *req, void *arg)
 
 static void timeoutResponse(evutil_socket_t fd, short event, void *arg)
 {
-  // ConcurrentDequeue<HttpResponse *> *responseQueue = (ConcurrentDequeue<HttpResponse *> *)arg;
-  // HttpResponse *response = NULL;
-  // if (responseQueue->popTail(response))
-  // {
-  //   response->doResponse();
-  //   delete response;
-  // }
+  //
 }
 
 void tryRespEventHandler(int fd, short event, void *arg)
@@ -44,6 +37,7 @@ void tryRespEventHandler(int fd, short event, void *arg)
   if (readed <= 0)
   {
     logger.log(WARN_LOG, "notified but nothing to read");
+    // do not return. maybe some task is in the queue
   }
   Task *taskResp = NULL;
   if (me->responseQueue.popTail(taskResp))
@@ -53,6 +47,7 @@ void tryRespEventHandler(int fd, short event, void *arg)
     if (it == me->doingRequest.end())
     {
       logger.log(ERROR_LOG, "index the evhttp_request by task pointer error, impossible");
+      delete taskResp;  // in case of mem leak
       return;
     }
     req = it->second;
@@ -61,15 +56,6 @@ void tryRespEventHandler(int fd, short event, void *arg)
     HttpResponse response = HttpResponse(req);
     taskResp->fillHttpResponse(&response);
     response.doResponse();
-
-    // string content = taskResp->buildResponse();
-    // evhttp_add_header(evhttp_request_get_output_headers(req),
-    //                 "Content-Type", "text/html");
-    // struct evbuffer *evb = evbuffer_new();
-    // evbuffer_expand(evb, content.size());
-    // evbuffer_add(evb, (const void *)content.c_str(), content.size());
-    // evhttp_send_reply(req, 200, "OK", evb);
-    // evbuffer_free(evb);
     delete taskResp;
   }
 }
@@ -83,7 +69,6 @@ HttpServer::HttpServer(unsigned short port)
   tryRespEvent = NULL;
   tv = NULL;
   bindPort = port;
-  exitStatus = 0;
 }
 
 HttpServer::~HttpServer()
@@ -112,31 +97,32 @@ bool HttpServer::initServer()
 {
   if (!initPipe())
   {
+    logger.log(ERROR_LOG, "init msg queue pipe error");
     return false;
   }
   base = event_base_new();
   if (!base)
   {
-    // init event base error, log it
+    logger.log(ERROR_LOG, "new event base error in http server thread");
     return false;
   }
   http = evhttp_new(base);
   if (!http)
   {
-    // init http struct error, log it
+    logger.log(ERROR_LOG, "new http struct error");
     return false;
   }
-  // start to register handlers
-  // evhttp_set_cb(http, "/dump", dump_request_cb, NULL);
+  // register handler
   doRegister();
   evhttp_set_gencb(http, generalHttpCallback, NULL);
   handle = evhttp_bind_socket_with_handle(http, "0.0.0.0", bindPort);
   if (!handle)
   {
-    // bind listening socket error, log it
+    logger.log(ERROR_LOG, "bind to local addr (0.0.0.0 : %d) error, http server will not serve", bindPort);
     return false;
   }
-  // log, init server success;
+  
+  logger.log(INFO_LOG, "init http server success, bind addr (0.0.0.0 : %d)", bindPort);
   setTimerTask();
   setNotifyEvent();
   return true;
@@ -144,12 +130,10 @@ bool HttpServer::initServer()
 
 void *HttpServer::doRun()
 {
-  std::cout << "start do run, " << bindPort << std::endl;
   if (!initServer())
   {
-    // init server error, failed to start the http server
-    exitStatus = 1;
-    pthread_exit((void *)&exitStatus);
+    logger.log(ERROR_LOG, "init http server error, exits thread");
+    pthread_exit(NULL);
   }
   else
   {
@@ -177,7 +161,7 @@ bool HttpServer::registerHandler(const string& path, void (*handler)(struct evht
 {
   map<string, void *>::iterator it = handlers.find(path);
   if (it != handlers.end()) {
-    // already registered, reject and log
+    logger.log(ERROR_LOG, "duplicated reister, url: %s", path.c_str());
     return false;
   }
   handlers.insert(pair<string, void*>(path, (void *)handler));
@@ -193,7 +177,7 @@ bool HttpServer::setTimerTask()
   // init event
   event_assign(timeoutEvent, base, -1, flags, timeoutResponse, (void *) &responseQueue);
   evutil_timerclear(tv);
-  tv->tv_sec = 60;  // every 60 second do this work
+  tv->tv_sec = 60;
   // tv->tv_usec = 20;  // 20 usec loop consumes 3% cpu of single core on pc (CORE i5)
   event_add(timeoutEvent, tv);
   return true;
@@ -220,7 +204,7 @@ bool HttpServer::initPipe()
   int fds[2];
   if (pipe(fds))
   {
-    // create pipe error, log
+    logger.log(ERROR_LOG, "create pipe error");
     return false;
   }
   recvFd = fds[0];
@@ -237,19 +221,19 @@ bool HttpServer::closePipe()
 
 void HttpServer::notify()
 {
-  // simple notify
   ssize_t written = write(notifyFd, "c", 1);
   if (written <= 0) {
-    // write error, log
+    logger.log(ERROR_LOG, "write to notify pipe error");
   }
 }
 
 bool HttpServer::sendToWorker(Task *task)
 {
   int size = workers.size();
-  int randedIndex = Common::getRandIntvalue(0, size);
+  static int randedIndex = Common::getRandIntvalue(0, size);
   TaskWorker *worker = workers[randedIndex];
   worker->enqueueTask(task);
   worker->notify();
+  randedIndex = (randedIndex + 1) % WORKER_NUM; // dispatch strategy
   return true;
 }

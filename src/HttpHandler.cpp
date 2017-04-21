@@ -35,6 +35,8 @@ finally:
   if  (it != server->doingRequest.end())
   {
     logger.log(ERROR_LOG, "what the fuck, impossible");
+    delete task;
+    return;
   }
   server->doingRequest.insert(pair<Task *, struct evhttp_request *>(task, req));
 
@@ -57,6 +59,11 @@ void HttpHandler::handleSshReq(struct evhttp_request *req, void *arg)
 }
 
 void HttpHandler::handleHttpReq(struct evhttp_request *req, void *arg)
+{
+  return;
+}
+
+void HttpHandler::hadnleSnmpReq(struct evhttp_request *req, void *arg)
 {
   return;
 }
